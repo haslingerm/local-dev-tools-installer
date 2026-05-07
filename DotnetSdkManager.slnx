@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="DotnetSdkManager.App/DotnetSdkManager.App.csproj" />
+  <Project Path="DotnetSdkManager.Core/DotnetSdkManager.Core.csproj" />
+</Solution>

@@ -1,0 +1,43 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DotnetSdkManager.App.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="600"
+        x:Class="DotnetSdkManager.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title=".NET SDK Manager"
+        Width="900" Height="620"
+        MinWidth="700" MinHeight="450">
+
+    <Grid ColumnDefinitions="180,*">
+
+        <!-- Left nav -->
+        <Border Grid.Column="0"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,0,1,0">
+            <StackPanel Margin="8,16,8,8" Spacing="4">
+                <TextBlock Text=".NET SDK Manager"
+                           FontWeight="SemiBold"
+                           FontSize="13"
+                           Margin="8,0,0,12"
+                           TextWrapping="Wrap"/>
+                <Button Content="Installed SDKs"
+                        Command="{Binding ShowSdkListCommand}"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left"/>
+                <Button Content="Browse Catalog"
+                        Command="{Binding ShowCatalogCommand}"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Content -->
+        <ContentControl Grid.Column="1"
+                        Content="{Binding CurrentPage}"
+                        Margin="0"/>
+    </Grid>
+
+</Window>

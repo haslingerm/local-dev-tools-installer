@@ -1,0 +1,70 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DotnetSdkManager.App.ViewModels"
+             x:Class="DotnetSdkManager.App.Views.SdkListPageView"
+             x:DataType="vm:SdkListPageViewModel">
+
+    <DockPanel Margin="16">
+
+        <!-- Header -->
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+            <TextBlock Text="Installed SDKs" FontSize="18" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                       Margin="0,4,0,0" IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+        </StackPanel>
+
+        <!-- Empty state -->
+        <TextBlock DockPanel.Dock="Top"
+                   Text="No .NET SDKs found on this system."
+                   IsVisible="{Binding IsEmpty}"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   Margin="0,40,0,0"/>
+
+        <!-- SDK list -->
+        <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Sdks}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SdkItemViewModel">
+                        <Border Margin="0,0,0,8" Padding="12"
+                                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                                CornerRadius="6">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding Version}" FontSize="15" FontWeight="SemiBold"/>
+                                        <Border Background="{DynamicResource SystemAccentColor}"
+                                                CornerRadius="3" Padding="4,1"
+                                                IsVisible="{Binding IsActive}">
+                                            <TextBlock Text="Active" FontSize="11" Foreground="White"/>
+                                        </Border>
+                                        <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                                                CornerRadius="3" Padding="4,1">
+                                            <TextBlock Text="{Binding SourceLabel}" FontSize="11"/>
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding InstallPath}" FontSize="11"
+                                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <Button Content="Set as Default"
+                                            IsVisible="{Binding CanSetDefault}"
+                                            Command="{Binding $parent[ItemsControl].((vm:SdkListPageViewModel)DataContext).SetDefaultCommand}"
+                                            CommandParameter="{Binding}"/>
+                                    <Button Content="Uninstall"
+                                            IsVisible="{Binding CanUninstall}"
+                                            Command="{Binding $parent[ItemsControl].((vm:SdkListPageViewModel)DataContext).UninstallCommand}"
+                                            CommandParameter="{Binding}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+    </DockPanel>
+
+</UserControl>
