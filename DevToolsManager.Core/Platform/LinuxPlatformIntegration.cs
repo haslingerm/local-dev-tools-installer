@@ -29,6 +29,12 @@ public sealed class LinuxPlatformIntegration : IPlatformIntegration
     public string SideloadDir => Path.Combine(DataDir, "sideload");
     public string ArchiveExtension => ".tar.gz";
 
+    public string IdeInstallRoot => Path.Combine(DataDir, "ides");
+    public string IdeSideloadDir => Path.Combine(DataDir, "sideload-ides");
+
+    private string ShortcutDir => Path.Combine(DataDir, "shortcuts");
+    private string DesktopAppsDir => Path.Combine(_home, ".local", "share", "applications");
+
     public string CurrentRid =>
         RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "linux-arm64" : "linux-x64";
 
@@ -155,6 +161,128 @@ public sealed class LinuxPlatformIntegration : IPlatformIntegration
         return ValueTask.CompletedTask;
     }
 
+    public ValueTask CreateOrUpdateIdeLinkAsync(
+        string productSlug,
+        string targetPath,
+        CancellationToken ct = default)
+    {
+        PathSafety.RequireValidFileName(productSlug, nameof(productSlug));
+
+        var fullTarget = Path.GetFullPath(targetPath);
+        if (!Directory.Exists(fullTarget))
+        {
+            throw new DirectoryNotFoundException($"Link target does not exist: '{fullTarget}'.");
+        }
+
+        if (!PathSafety.IsInsideRoot(IdeInstallRoot, fullTarget))
+        {
+            throw new InvalidOperationException(
+                $"Refusing to create active IDE link to '{fullTarget}': not under managed IDE root.");
+        }
+
+        var productRoot = PathSafety.CombineSafe(IdeInstallRoot, productSlug);
+        Directory.CreateDirectory(productRoot);
+        var linkPath = Path.Combine(productRoot, "active");
+
+        if (File.Exists(linkPath) || Directory.Exists(linkPath))
+        {
+            File.Delete(linkPath);
+        }
+
+        File.CreateSymbolicLink(linkPath, fullTarget);
+        return ValueTask.CompletedTask;
+    }
+
+    public async ValueTask CreateOrUpdateShortcutAsync(
+        IdeShortcutSpec spec,
+        CancellationToken ct = default)
+    {
+        PathSafety.RequireValidFileName(spec.ProductSlug, nameof(spec.ProductSlug));
+        var slug = spec.ProductSlug.ToLowerInvariant();
+
+        Directory.CreateDirectory(ShortcutDir);
+        Directory.CreateDirectory(DesktopAppsDir);
+
+        // 1. The wrapper script: exports DOTNET_ROOT and prepends the active SDK to PATH
+        //    *before* exec-ing the IDE launcher, so JetBrains GUI processes (which don't
+        //    inherit env from .profile / .bashrc on most desktop environments) still see
+        //    the .NET SDK we manage.
+        var wrapperPath = Path.Combine(ShortcutDir, $"{slug}-launcher.sh");
+        var quotedActive = ShellQuote(ActiveLinkPath);
+        var quotedExec = ShellQuote(spec.ExecutablePath);
+        var wrapperContent = $"""
+            #!/bin/sh
+            # dev-tools-manager IDE launcher — auto-generated, do not edit.
+            active={quotedActive}
+            if [ -d "$active" ]; then
+                export DOTNET_ROOT="$active"
+                case ":$PATH:" in *":$active:"*) ;; *) export PATH="$active:$PATH" ;; esac
+            fi
+            exec {quotedExec} "$@"
+            """ + "\n";
+
+        var wrapperTmp = wrapperPath + ".tmp";
+        await File.WriteAllTextAsync(wrapperTmp, wrapperContent, ct);
+        File.Move(wrapperTmp, wrapperPath, overwrite: true);
+        File.SetUnixFileMode(wrapperPath,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+            UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+            UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+
+        // 2. The .desktop entry — references the wrapper, never the launcher directly.
+        var desktopPath = Path.Combine(DesktopAppsDir, $"dev-tools-{slug}.desktop");
+        var desktopContent = $"""
+            [Desktop Entry]
+            Version=1.0
+            Type=Application
+            Name={DesktopEscape(spec.DisplayName)}
+            Comment={DesktopEscape(spec.Comment)}
+            Exec="{wrapperPath}" %f
+            Icon={spec.IconPath}
+            Terminal=false
+            Categories=Development;IDE;
+            StartupWMClass={spec.StartupWmClass}
+            StartupNotify=true
+            """ + "\n";
+
+        var desktopTmp = desktopPath + ".tmp";
+        await File.WriteAllTextAsync(desktopTmp, desktopContent, ct);
+        File.Move(desktopTmp, desktopPath, overwrite: true);
+
+        // 3. Best-effort: refresh the desktop database so the menu picks up the new entry
+        //    immediately. Non-fatal if update-desktop-database isn't installed.
+        try
+        {
+            await _runner.RunAsync("update-desktop-database", [DesktopAppsDir], 10, ct);
+        }
+        catch
+        {
+            // ignore: tool not present, menu refreshes on next session anyway
+        }
+    }
+
+    public ValueTask RemoveShortcutAsync(
+        string productSlug,
+        string displayName,
+        CancellationToken ct = default)
+    {
+        PathSafety.RequireValidFileName(productSlug, nameof(productSlug));
+        var slug = productSlug.ToLowerInvariant();
+        var wrapperPath = Path.Combine(ShortcutDir, $"{slug}-launcher.sh");
+        var desktopPath = Path.Combine(DesktopAppsDir, $"dev-tools-{slug}.desktop");
+
+        if (File.Exists(wrapperPath))
+        {
+            try { File.Delete(wrapperPath); } catch { /* best-effort */ }
+        }
+        if (File.Exists(desktopPath))
+        {
+            try { File.Delete(desktopPath); } catch { /* best-effort */ }
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
     public async ValueTask<string> RunInShellAsync(string command, int timeoutSeconds = 30, CancellationToken ct = default)
     {
         var result = await _runner.RunAsync("bash", ["-lc", command], timeoutSeconds, ct);
@@ -190,4 +318,14 @@ public sealed class LinuxPlatformIntegration : IPlatformIntegration
 
     private static string FishQuote(string value) =>
         "'" + value.Replace("\\", "\\\\").Replace("'", "\\'") + "'";
+
+    /// <summary>
+    /// Escape a string for use as a value in a .desktop entry, per the
+    /// freedesktop.org Desktop Entry Specification (string type).
+    /// </summary>
+    private static string DesktopEscape(string value) => value
+        .Replace("\\", "\\\\")
+        .Replace("\n", "\\n")
+        .Replace("\r", "\\r")
+        .Replace("\t", "\\t");
 }

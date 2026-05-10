@@ -22,6 +22,9 @@ public sealed class WindowsPlatformIntegration : IPlatformIntegration
     public string SideloadDir => Path.Combine(DataDir, "sideload");
     public string ArchiveExtension => ".zip";
 
+    public string IdeInstallRoot => Path.Combine(DataDir, "ides");
+    public string IdeSideloadDir => Path.Combine(DataDir, "sideload-ides");
+
     public string CurrentRid =>
         RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "win-arm64" : "win-x64";
 
@@ -112,6 +115,102 @@ public sealed class WindowsPlatformIntegration : IPlatformIntegration
         }
     }
 
+    public async ValueTask CreateOrUpdateIdeLinkAsync(
+        string productSlug,
+        string targetPath,
+        CancellationToken ct = default)
+    {
+        PathSafety.RequireValidFileName(productSlug, nameof(productSlug));
+
+        var fullTarget = Path.GetFullPath(targetPath);
+        if (!Directory.Exists(fullTarget))
+        {
+            throw new DirectoryNotFoundException($"Link target does not exist: '{fullTarget}'.");
+        }
+
+        if (!PathSafety.IsInsideRoot(IdeInstallRoot, fullTarget))
+        {
+            throw new InvalidOperationException(
+                $"Refusing to create active IDE link to '{fullTarget}': not under managed IDE root.");
+        }
+
+        var productRoot = PathSafety.CombineSafe(IdeInstallRoot, productSlug);
+        Directory.CreateDirectory(productRoot);
+        var linkPath = Path.Combine(productRoot, "active");
+
+        if (Directory.Exists(linkPath))
+        {
+            // Junctions are reparse points; Directory.Delete removes the link only,
+            // not its target.
+            Directory.Delete(linkPath, recursive: false);
+        }
+        else if (File.Exists(linkPath))
+        {
+            File.Delete(linkPath);
+        }
+
+        if (!CreateJunction(linkPath, fullTarget, out var error))
+        {
+            var result = await _runner.RunAsync(
+                "cmd",
+                ["/c", "mklink", "/J", linkPath, fullTarget],
+                10,
+                ct);
+
+            if (!result.Success)
+            {
+                throw new InvalidOperationException(
+                    $"Failed to create junction '{linkPath}' -> '{fullTarget}': {error}; mklink fallback: {result.Stderr}");
+            }
+        }
+    }
+
+    public ValueTask CreateOrUpdateShortcutAsync(
+        IdeShortcutSpec spec,
+        CancellationToken ct = default)
+    {
+        var startMenu = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
+        Directory.CreateDirectory(startMenu);
+        var lnkPath = Path.Combine(startMenu, spec.DisplayName + ".lnk");
+
+        var workingDir = Path.GetDirectoryName(spec.ExecutablePath) ?? "";
+
+        IShellLinkW? link = null;
+        try
+        {
+            link = (IShellLinkW)new ShellLink();
+            link.SetPath(spec.ExecutablePath);
+            link.SetWorkingDirectory(workingDir);
+            link.SetDescription(spec.Comment);
+            link.SetIconLocation(spec.IconPath, 0);
+            link.SetShowCmd(SW_SHOWNORMAL);
+            ((IPersistFile)link).Save(lnkPath, fRemember: true);
+        }
+        finally
+        {
+            if (link is not null)
+            {
+                Marshal.FinalReleaseComObject(link);
+            }
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask RemoveShortcutAsync(
+        string productSlug,
+        string displayName,
+        CancellationToken ct = default)
+    {
+        var startMenu = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
+        var lnkPath = Path.Combine(startMenu, displayName + ".lnk");
+        if (File.Exists(lnkPath))
+        {
+            try { File.Delete(lnkPath); } catch { /* best-effort */ }
+        }
+        return ValueTask.CompletedTask;
+    }
+
     public async ValueTask<string> RunInShellAsync(string command, int timeoutSeconds = 30, CancellationToken ct = default)
     {
         var result = await _runner.RunAsync("cmd", ["/c", command], timeoutSeconds, ct);
@@ -176,6 +275,64 @@ public sealed class WindowsPlatformIntegration : IPlatformIntegration
         IntPtr lpInBuffer, uint nInBufferSize,
         IntPtr lpOutBuffer, uint nOutBufferSize,
         out uint lpBytesReturned, IntPtr lpOverlapped);
+
+    // ----- IShellLinkW COM interop for .lnk creation (no admin required) -----
+
+    private const int SW_SHOWNORMAL = 1;
+    private const int MAX_PATH = 260;
+
+    [ComImport]
+    [Guid("00021401-0000-0000-C000-000000000046")]
+    private class ShellLink { }
+
+    [ComImport]
+    [Guid("000214F9-0000-0000-C000-000000000046")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IShellLinkW
+    {
+        void GetPath(
+            [Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszFile,
+            int cch, IntPtr pfd, int fFlags);
+        void GetIDList(out IntPtr ppidl);
+        void SetIDList(IntPtr pidl);
+        void GetDescription(
+            [Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszName, int cch);
+        void SetDescription([MarshalAs(UnmanagedType.LPWStr)] string pszName);
+        void GetWorkingDirectory(
+            [Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszDir, int cch);
+        void SetWorkingDirectory([MarshalAs(UnmanagedType.LPWStr)] string pszDir);
+        void GetArguments(
+            [Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszArgs, int cch);
+        void SetArguments([MarshalAs(UnmanagedType.LPWStr)] string pszArgs);
+        void GetHotkey(out short pwHotkey);
+        void SetHotkey(short wHotkey);
+        void GetShowCmd(out int piShowCmd);
+        void SetShowCmd(int iShowCmd);
+        void GetIconLocation(
+            [Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszIconPath,
+            int cch, out int piIcon);
+        void SetIconLocation([MarshalAs(UnmanagedType.LPWStr)] string pszIconPath, int iIcon);
+        void SetRelativePath([MarshalAs(UnmanagedType.LPWStr)] string pszPathRel, int dwReserved);
+        void Resolve(IntPtr hwnd, int fFlags);
+        void SetPath([MarshalAs(UnmanagedType.LPWStr)] string pszFile);
+    }
+
+    [ComImport]
+    [Guid("0000010b-0000-0000-C000-000000000046")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IPersistFile
+    {
+        void GetClassID(out Guid pClassID);
+        [PreserveSig] int IsDirty();
+        void Load([MarshalAs(UnmanagedType.LPWStr)] string pszFileName, int dwMode);
+        void Save(
+            [MarshalAs(UnmanagedType.LPWStr)] string pszFileName,
+            [MarshalAs(UnmanagedType.Bool)] bool fRemember);
+        void SaveCompleted([MarshalAs(UnmanagedType.LPWStr)] string pszFileName);
+        void GetCurFile([MarshalAs(UnmanagedType.LPWStr)] out string ppszFileName);
+    }
+
+    // ----- Junction reparse point creation -----
 
     private static bool CreateJunction(string junctionPath, string targetDir, out string? error)
     {
