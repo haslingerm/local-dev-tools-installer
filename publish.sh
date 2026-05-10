@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP="$SCRIPT_DIR/DotnetSdkManager.App/DotnetSdkManager.App.csproj"
+APP="$SCRIPT_DIR/DevToolsManager.App/DevToolsManager.App.csproj"
 
 echo "==> Building linux-x64 single-file..."
 dotnet publish "$APP" /p:PublishProfile=linux-x64 /p:PublishSingleFile=true -c Release

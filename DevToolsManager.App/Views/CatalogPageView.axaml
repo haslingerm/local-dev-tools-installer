@@ -1,0 +1,113 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DevToolsManager.App.ViewModels"
+             x:Class="DevToolsManager.App.Views.CatalogPageView"
+             x:DataType="vm:CatalogPageViewModel">
+
+    <DockPanel Margin="16">
+
+        <!-- Header -->
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+            <TextBlock Text="Browse Catalog" FontSize="18" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding StatusMessage}"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                       Margin="0,4,0,0"
+                       IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+            <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsLoading}" Height="3" Margin="0,6,0,0"/>
+        </StackPanel>
+
+        <!-- Channel list -->
+        <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Channels}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ReleaseChannelViewModel">
+                        <Border Margin="0,0,0,8" CornerRadius="6"
+                                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+                            <StackPanel>
+
+                                <!-- Channel header (clickable) -->
+                                <Button Padding="12,10"
+                                        HorizontalContentAlignment="Stretch"
+                                        HorizontalAlignment="Stretch"
+                                        Background="Transparent"
+                                        Command="{Binding $parent[ItemsControl].((vm:CatalogPageViewModel)DataContext).ExpandChannelCommand}"
+                                        CommandParameter="{Binding}">
+                                    <TextBlock Text="{Binding Header}"
+                                               FontWeight="SemiBold"
+                                               FontSize="13"
+                                               VerticalAlignment="Center"/>
+                                </Button>
+
+                                <!-- Loading indicator for channel -->
+                                <ProgressBar IsVisible="{Binding IsLoading}"
+                                             IsIndeterminate="True"
+                                             Height="2"
+                                             Margin="0"/>
+
+                                <!-- Error for channel -->
+                                <TextBlock Text="{Binding StatusMessage}"
+                                           IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                           Foreground="Red"
+                                           Margin="12,4,12,8"/>
+
+                                <!-- Releases list (when expanded) -->
+                                <ItemsControl ItemsSource="{Binding Releases}"
+                                              IsVisible="{Binding IsExpanded}"
+                                              Margin="0,0,0,4">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ReleaseItemViewModel">
+                                            <Border Margin="12,2,12,2" Padding="10,8"
+                                                    Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                                                    CornerRadius="4">
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                            <TextBlock Text="{Binding Version}" FontWeight="SemiBold"/>
+                                                            <Border IsVisible="{Binding IsInstalled}"
+                                                                    Background="{DynamicResource SystemAccentColor}"
+                                                                    CornerRadius="3" Padding="4,1">
+                                                                <TextBlock Text="Installed" FontSize="10" Foreground="White"/>
+                                                            </Border>
+                                                            <Border IsVisible="{Binding HasSideload}"
+                                                                    Background="{DynamicResource SystemControlHighlightAccentBrush}"
+                                                                    CornerRadius="3" Padding="4,1">
+                                                                <TextBlock Text="{Binding BadgeText}" FontSize="10" Foreground="White"/>
+                                                            </Border>
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding SizeLabel}"
+                                                                   FontSize="11"
+                                                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                                                   IsVisible="{Binding SizeLabel, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                                        <TextBlock Text="{Binding StatusMessage}"
+                                                                   FontSize="11"
+                                                                   IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                                        <ProgressBar Value="{Binding ProgressPercent}"
+                                                                     Maximum="100"
+                                                                     Height="3"
+                                                                     Margin="0,2,0,0"
+                                                                     IsVisible="{Binding IsInstalling}"/>
+                                                    </StackPanel>
+
+                                                    <Button Grid.Column="1"
+                                                            Content="{Binding ButtonLabel}"
+                                                            VerticalAlignment="Center"
+                                                            IsEnabled="{Binding IsInstalling, Converter={x:Static BoolConverters.Not}}"
+                                                            IsVisible="{Binding IsInstalled, Converter={x:Static BoolConverters.Not}}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:CatalogPageViewModel)DataContext).InstallCommand}"
+                                                            CommandParameter="{Binding}"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+    </DockPanel>
+
+</UserControl>
