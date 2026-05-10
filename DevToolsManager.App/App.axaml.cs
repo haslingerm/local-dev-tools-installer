@@ -101,6 +101,7 @@ public partial class App : Application
         sc.AddSingleton<StateManager>();
         sc.AddSingleton<SdkDiscovery>();
         sc.AddSingleton<ReleasesCatalogClient>();
+        sc.AddSingleton<ProductInstaller>();
         sc.AddSingleton<SdkInstaller>();
         sc.AddSingleton<SideloadScanner>();
         sc.AddSingleton<StubManager>();
