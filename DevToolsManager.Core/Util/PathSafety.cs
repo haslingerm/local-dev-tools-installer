@@ -10,11 +10,19 @@ public static partial class PathSafety
     [GeneratedRegex(@"^\d+\.\d+(?:\.\d+)?(?:[-+.][A-Za-z0-9._-]+)?$", RegexOptions.Compiled)]
     private static partial Regex ChannelVersionRegex();
 
+    // JetBrains stable version: 2-4 numeric parts (2026.1, 2026.1.1, 2026.1.1.1).
+    // Deliberately does not allow suffixes; EAP / preview versions are skipped.
+    [GeneratedRegex(@"^\d+\.\d+(?:\.\d+){0,2}$", RegexOptions.Compiled)]
+    private static partial Regex IdeVersionRegex();
+
     public static bool IsValidSdkVersion(string? version) =>
         !string.IsNullOrWhiteSpace(version) && SdkVersionRegex().IsMatch(version);
 
     public static bool IsValidChannelVersion(string? version) =>
         !string.IsNullOrWhiteSpace(version) && ChannelVersionRegex().IsMatch(version);
+
+    public static bool IsValidIdeVersion(string? version) =>
+        !string.IsNullOrWhiteSpace(version) && IdeVersionRegex().IsMatch(version);
 
     public static string RequireValidSdkVersion(string version, string paramName)
     {
@@ -30,6 +38,15 @@ public static partial class PathSafety
         if (!IsValidChannelVersion(version))
         {
             throw new ArgumentException($"Invalid channel version: '{version}'.", paramName);
+        }
+        return version;
+    }
+
+    public static string RequireValidIdeVersion(string version, string paramName)
+    {
+        if (!IsValidIdeVersion(version))
+        {
+            throw new ArgumentException($"Invalid IDE version: '{version}'.", paramName);
         }
         return version;
     }

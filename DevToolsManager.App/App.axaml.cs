@@ -4,6 +4,7 @@ using Avalonia.Markup.Xaml;
 using DevToolsManager.App.ViewModels;
 using DevToolsManager.App.Views;
 using DevToolsManager.Core.Catalog;
+using DevToolsManager.Core.Catalog.JetBrains;
 using DevToolsManager.Core.Discovery;
 using DevToolsManager.Core.Install;
 using DevToolsManager.Core.Platform;
@@ -100,10 +101,14 @@ public partial class App : Application
 
         sc.AddSingleton<StateManager>();
         sc.AddSingleton<SdkDiscovery>();
+        sc.AddSingleton<IdeDiscovery>();
         sc.AddSingleton<ReleasesCatalogClient>();
+        sc.AddSingleton<JetBrainsCatalogClient>();
         sc.AddSingleton<ProductInstaller>();
         sc.AddSingleton<SdkInstaller>();
+        sc.AddSingleton<IdeInstaller>();
         sc.AddSingleton<SideloadScanner>();
+        sc.AddSingleton<IdeSideloadScanner>();
         sc.AddSingleton<StubManager>();
         sc.AddSingleton(p => new SdkUninstaller(
             p.GetRequiredService<IPlatformIntegration>(),
