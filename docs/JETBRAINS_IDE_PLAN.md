@@ -96,11 +96,20 @@ Per the user requirement. Direct ZIP / tar.gz extraction only.
 
 ### 3.2 Project naming
 
-**Decision: keep the assembly / namespace names** (`DotnetSdkManager.*`) for
-this branch. Rename is a separate refactor; doing it now would conflate two
-concerns and make the diff hard to review. The window title and user-visible
-strings will be updated in Phase 6 to reflect the broader scope (e.g.
-"Dev Tools Manager"). A future renaming PR can move the namespaces.
+**Decision: rename to `DevToolsManager`** — done up front as Phase 1.
+
+- Solution: `DevToolsManager.slnx`
+- Projects: `DevToolsManager.App`, `DevToolsManager.Core`
+- Namespaces: `DevToolsManager.App.*`, `DevToolsManager.Core.*`
+- Data dir: Windows `%LOCALAPPDATA%\DevToolsManager\`,
+  Linux `~/.local/share/dev-tools-manager/`
+- Shell rc markers: `# >>> dev-tools-manager >>>`
+- Window title: "Dev Tools Manager"
+- HTTP User-Agent: `DevToolsManager/1.0`
+
+Doing this first means every later phase ships under the final name. The
+data-dir change is a clean break (initial commit was unverified, no users
+yet to migrate).
 
 ### 3.3 IDE catalog source
 
@@ -177,32 +186,24 @@ pattern as SDKs).
 
 ### 3.8 IDE config dir policy
 
-JetBrains IDE settings default to:
+**Decision: OS defaults only. No `idea.properties` mode.**
+
+JetBrains IDE settings go where the IDE puts them by default:
 
 - Windows: `%APPDATA%\JetBrains\Rider<ver>\`,
   caches in `%LOCALAPPDATA%\JetBrains\Rider<ver>\`
 - Linux: `~/.config/JetBrains/Rider<ver>/`,
   caches in `~/.cache/JetBrains/Rider<ver>/`
 
-Two modes available in the IDE install UI:
+Rationale: school-PC user profiles are wiped on each session anyway, so any
+extra "self-contained" mode adds complexity without solving a real problem.
+Students who use this on personal machines get the standard JetBrains
+behavior they'd expect from any other install method. Skip it.
 
-1. **Default (recommended for personal accounts):** OS defaults. Settings
-   survive across upgrades; lost on profile wipe.
-2. **Self-contained (recommended for shared exam machines):** drop an
-   `idea.properties` next to `bin/rider.sh` redirecting all directories under
-   `${idea.home}/`. The IDE state lives inside the install dir, so persisting
-   the install dir persists everything.
-
-```properties
-idea.config.path=${idea.home}/config
-idea.system.path=${idea.home}/system
-idea.plugins.path=${idea.home}/config/plugins
-idea.log.path=${idea.home}/system/log
-ide.no.platform.update=true
-```
-
-`ide.no.platform.update=true` disables the in-place updater so the version
-the school deployed stays the version students get.
+We do *not* generate an `idea.properties`, so the bundled in-place updater
+remains active. That's acceptable: students typically use the tool once at
+exam start, then close it. If the IDE notifies about a patch mid-session,
+they can ignore. Documenting in the README is enough.
 
 ### 3.9 Linux GUI env propagation — the wrapper script
 
@@ -254,8 +255,10 @@ later installs Toolbox on their personal machine. Use shortcuts only.
 
 ### 4.1 New layout (post-implementation)
 
+All names below are the post-Phase-1 names (`DevToolsManager.*`).
+
 ```
-DotnetSdkManager.Core/
+DevToolsManager.Core/
 ├── Catalog/                          ← .NET catalog (unchanged)
 │   ├── ReleasesCatalogClient.cs
 │   ├── ReleasesIndexEntry.cs
@@ -278,6 +281,8 @@ DotnetSdkManager.Core/
 │   ├── SdkUninstaller.cs             ← unchanged
 │   ├── IdeUninstaller.cs             ← NEW: remove version, switch active
 │   ├── StubManager.cs                ← unchanged
+│   ├── BootstrapManager.cs           ← NEW: extracted from BootstrapPageViewModel,
+│   │                                    runs PATH setup idempotently
 │   └── ShortcutWriter.cs             ← NEW: Win .lnk + Linux .desktop + wrapper
 ├── Models/
 │   ├── AppState.cs                   ← +ActiveIdes dictionary, schema v2
@@ -299,21 +304,27 @@ DotnetSdkManager.Core/
 └── Util/
     └── PathSafety.cs                 ← +RequireValidIdeVersion (loose: x.y.z[.w])
 
-DotnetSdkManager.App/
+DevToolsManager.App/
 ├── ViewModels/
-│   ├── MainWindowViewModel.cs        ← +Tabs, +ExamModeTabVm
-│   ├── BootstrapPageViewModel.cs     ← unchanged
-│   ├── SdkListPageViewModel.cs       ← unchanged
-│   ├── CatalogPageViewModel.cs       ← unchanged
-│   ├── IdeOverviewPageViewModel.cs   ← NEW: per-product card list
-│   ├── IdeProductCardViewModel.cs    ← NEW: install/update/launch/uninstall per product
-│   ├── ExamModePageViewModel.cs      ← NEW: one-click flow
-│   └── ReleaseChannelViewModel.cs    ← unchanged
+│   ├── MainWindowViewModel.cs        ← TabControl over 4 tab VMs
+│   ├── ProductTabViewModel.cs        ← NEW: shared "latest + install + show all" base
+│   ├── DotnetTabViewModel.cs         ← NEW: .NET tab (kicks off bootstrap on first install)
+│   ├── RiderTabViewModel.cs          ← NEW
+│   ├── WebStormTabViewModel.cs       ← NEW
+│   ├── CleanupTabViewModel.cs        ← NEW
+│   ├── CleanupItemViewModel.cs       ← NEW: per-row in Cleanup tab
+│   ├── SdkListPageViewModel.cs       ← DELETED (folded into Cleanup tab)
+│   ├── CatalogPageViewModel.cs       ← kept, reused inside .NET tab's "show all" expander
+│   ├── BootstrapPageViewModel.cs     ← DELETED (replaced by BootstrapManager)
+│   ├── ReleaseChannelViewModel.cs    ← unchanged
+│   ├── ReleaseItemViewModel.cs       ← unchanged
+│   └── SdkItemViewModel.cs           ← unchanged (used in Cleanup tab)
 ├── Views/
-│   ├── MainWindow.axaml              ← TabControl replaces left-nav
-│   ├── IdeOverviewPageView.axaml     ← NEW
-│   ├── IdeProductCardView.axaml      ← NEW
-│   └── ExamModePageView.axaml        ← NEW
+│   ├── MainWindow.axaml              ← TabControl
+│   ├── ProductTabView.axaml          ← NEW: shared template for product tabs
+│   ├── CleanupTabView.axaml          ← NEW
+│   ├── BootstrapPageView.axaml       ← DELETED
+│   └── SdkListPageView.axaml         ← DELETED
 └── (rest unchanged)
 ```
 
@@ -388,93 +399,136 @@ save. If JSON parsing fails, return a fresh `AppState` (existing behavior).
 ### 5.1 Top-level navigation: `TabControl`
 
 ```
-┌───────────────────────────────────────────────────────────┐
-│  [ Exam Mode ]  [ .NET SDKs ]  [ IDEs ]  [ Settings ]     │ ← tabs
-├───────────────────────────────────────────────────────────┤
-│                                                           │
-│   tab content                                             │
-│                                                           │
-└───────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│  [ .NET ]  [ Rider ]  [ WebStorm ]  [ Cleanup ]          │ ← tabs
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│   tab content                                            │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
 ```
 
-Order matters: **Exam Mode is the first tab**, opens by default. A nervous
-student should not have to think; the right answer is on the screen.
+Each product tab is symmetric: "Latest available + one big button to
+install it." The student's mental model is identical across products.
+There is no "Settings" tab and no "Exam Mode" tab — exam-day behavior is
+just what the per-product tabs already do by default.
 
-### 5.2 Exam Mode tab
+### 5.2 Per-product tab (.NET / Rider / WebStorm)
 
-A dedicated landing page:
+The default state on tab entry shows only the latest version:
 
 ```
-        Get this PC ready for your exam
-        ───────────────────────────────────────
+   .NET SDK
+   ───────────────────────────────────────
 
-        ┌────────────────────────────────────────┐
-        │  ✓  .NET SDK 10.0.105 — installed      │
-        │  ✓  Rider 2026.1.1   — installed       │
-        │                                        │
-        │            [ All set! ]                │
-        └────────────────────────────────────────┘
+   Latest:  10.0.105  (released 2026-04-08)
 
-  or, when not ready:
+   ┌─────────────────────────────────────────┐
+   │   Currently installed: 10.0.103         │
+   │                                         │
+   │      [ Update to 10.0.105 (210 MB) ]    │
+   └─────────────────────────────────────────┘
 
-        ┌────────────────────────────────────────┐
-        │  ⟳  Will install:                      │
-        │     • .NET SDK 10.0.105   (~210 MB)   │
-        │     • Rider 2026.1.1      (~1.2 GB)   │
-        │                                        │
-        │       [ Prepare this PC (≈ 5 min) ]   │
-        └────────────────────────────────────────┘
+   ▾ Show all versions
+```
 
-  during install:
+Three states for the primary card:
 
-        ┌────────────────────────────────────────┐
-        │  Downloading & installing...           │
-        │                                        │
-        │  .NET SDK 10.0.105   ████████░░  82 % │
-        │  Rider 2026.1.1      ████░░░░░░  41 % │
-        │                                        │
-        │  Don't close this window.             │
-        └────────────────────────────────────────┘
+| State | Card content | Button |
+|---|---|---|
+| Nothing installed | "Not installed" | `[ Install 10.0.105 (210 MB) ]` |
+| Older installed | "Currently installed: X" | `[ Update to Y (210 MB) ]` |
+| Latest installed | "✓ 10.0.105 — up to date" | `[ Open Rider ]` (IDE only); none for .NET |
+
+During install: progress bar replaces the button, status line below.
+
+After successful install: button transitions to "Up to date" state, plus
+a small "✓ Done" toast for ~3 seconds.
+
+Idempotency: re-clicking the install button while already up-to-date is
+impossible (button changes). Re-entry to the tab re-fetches catalog,
+re-evaluates state.
+
+`Show all versions` (collapsed by default) reveals the existing
+catalog-browser view: full channel list for .NET, full release list for
+JetBrains. Power users / older-version installs go through there.
+
+### 5.3 Bootstrap is invisible
+
+The first `.NET install` action transparently performs the existing
+bootstrap (PATH + DOTNET_ROOT in HKCU\Environment / shell rc files) before
+extracting the SDK. No separate bootstrap page, no toggle. If bootstrap
+fails (rare — only writeable-state issue on some locked-down configs), the
+install fails with a clear message.
+
+This means a fresh user does not encounter the term "bootstrap" or "PATH"
+anywhere. They click `Install 10.0.105`, wait, done.
+
+### 5.4 Cleanup tab
+
+The disk-space recovery view. Lists **only managed installs** (system .NET
+SDKs and any future system-installed IDEs are read-only and never appear
+here):
+
+```
+   Cleanup
+   ───────────────────────────────────────────────────
+
+   Reclaim disk space by removing managed installs you no longer need.
+   Active versions and system installs are protected.
+
+   Total managed: 3.4 GB
+
+   .NET SDKs (managed)
+   ┌─────────────────────────────────────────────────┐
+   │  10.0.105  (active)            210 MB           │
+   │  10.0.103                      209 MB  [Remove] │
+   │  9.0.205                       195 MB  [Remove] │
+   └─────────────────────────────────────────────────┘
+
+   JetBrains Rider
+   ┌─────────────────────────────────────────────────┐
+   │  2026.1.1  (active)          1.6 GB             │
+   │  2025.3.4                    1.5 GB    [Remove] │
+   └─────────────────────────────────────────────────┘
+
+   JetBrains WebStorm
+   (none installed)
 ```
 
 Behavior:
 
-- On entry, computes "what's missing" from current state vs latest catalog.
-- One button. Idempotent. Re-running after success says "All set" and is a
-  no-op.
-- Downloads parallelized. Installation is sequential per product (cheap;
-  archives are I/O-bound).
-- After success: fixed-position "Open Rider" button that runs the shortcut.
-- Errors land in a single visible message + a "Retry" button. Never a
-  cryptic stack trace.
+- Sizes computed lazily after tab is shown (one-time enumeration; cached
+  for tab session).
+- `Remove` is a single click. No confirm dialog by default — but the
+  button briefly transitions to `Confirm?` for ~2s on first click,
+  becoming a real removal on the second click within that window. Cheap
+  protection against fat-finger; no modal pop-up.
+- Active versions show no `Remove` button by default. To remove the active
+  one, the user has to switch active first (advanced); we surface this as
+  a dimmed `Remove` with hover tooltip "This is the active version."
+- For .NET specifically, the existing fallback logic (`PickFallback` →
+  `SwitchToStubAsync`) makes removing the only active SDK technically
+  safe, but we still hide that path from the Cleanup tab to keep students
+  from cratering their setup.
+- Removal uses existing `SdkUninstaller` for SDKs and the new
+  `IdeUninstaller` for IDEs. After each removal, sizes refresh.
 
-### 5.3 IDEs tab
+The Cleanup tab does NOT show:
 
-Cards per product (Rider, WebStorm, …). Each card shows:
+- System-installed .NET SDKs (they're not ours to remove).
+- The active `dev-tools-manager/active` symlink (it's a pointer, not a
+  consumer of disk space worth surfacing).
+- The cache dir (cleared automatically; not user-actionable).
 
-- Product name + currently installed version (or "Not installed").
-- Latest available version from catalog, with delta indicator.
-- Buttons: `Install latest` / `Update to X` / `Launch` / `Manage versions…`.
+### 5.5 What the UI deliberately does NOT do
 
-`Manage versions…` opens a sub-page identical in spirit to the .NET catalog
-browser: list of available versions, install / uninstall actions.
-
-### 5.4 .NET SDKs tab
-
-Wraps the existing `SdkListPageView` and `CatalogPageView` as two sub-tabs
-(or kept side-by-side; final layout is a Phase 6 refinement).
-
-### 5.5 Settings tab (new)
-
-- Bootstrap status (move from blocking page to opt-in setting).
-- "Self-contained IDE config" toggle (applies on next install).
-- "Disable IDE auto-update" toggle (default on).
-- Sideload directory path display.
-- About / version / repo link.
-
-Bootstrap stops being a blocking modal. If the user hits Exam Mode without
-bootstrapping, the flow performs bootstrap as part of the prepare step
-silently. This removes a stumbling block for the nervous-student case.
+- No "all installed versions" panel on a product tab. That's the Cleanup
+  tab's job.
+- No multi-product "install everything" button. Two clicks (.NET +
+  Rider) is fine; the simplification is per-tab focus.
+- No notification badge for available updates. Re-fetched on tab entry
+  only. Avoids surprising the user with mid-session noise.
 
 ---
 
@@ -539,10 +593,45 @@ Each phase is a self-contained change-set that compiles, runs, and is
 intended to be committed as one logical unit. Phases are numbered to match
 the corresponding tasks in the task list.
 
-### Phase 1 — Project naming refactor (deferred)
+### Phase 1 — Project rename to `DevToolsManager`
 
-Decision recorded in §3.2. **Skipped on this branch.** Window title and
-display strings change in Phase 6.
+Mechanical refactor done in one commit so every later phase ships under
+the final name.
+
+Steps:
+
+1. `git mv DotnetSdkManager.App DevToolsManager.App` (and Core).
+2. Rename the .csproj files inside.
+3. Rename `DotnetSdkManager.slnx` → `DevToolsManager.slnx`; update the
+   `<Project Path=…/>` entries.
+4. Update namespaces across all `.cs` files: `DotnetSdkManager.App` →
+   `DevToolsManager.App`, `DotnetSdkManager.Core` → `DevToolsManager.Core`.
+5. Update Avalonia XAML namespaces (`xmlns:vm="using:DotnetSdkManager…"`)
+   and `x:Class` directives.
+6. Update string constants:
+   - `WindowsPlatformIntegration.DataDir`: `"DotnetSdkManager"` →
+     `"DevToolsManager"`.
+   - `LinuxPlatformIntegration.DataDir`: `"dotnet-sdk-manager"` →
+     `"dev-tools-manager"`.
+   - Linux rc-file markers: `dotnet-sdk-manager` → `dev-tools-manager`.
+   - Fish config filename and comment: same.
+   - `App.axaml.cs` HttpClient User-Agent: `"DotnetSdkManager/1.0"` →
+     `"DevToolsManager/1.0"`.
+   - `StubManager` error message strings.
+   - `MainWindow.axaml` `Title=".NET SDK Manager"` →
+     `Title="Dev Tools Manager"`.
+   - `BootstrapPageView.axaml` heading: `"Welcome to .NET SDK Manager"` →
+     `"Welcome to Dev Tools Manager"` (the bootstrap page disappears in
+     Phase 6 anyway, but keep the rebrand consistent in the meantime).
+   - `app.manifest` `assemblyIdentity name`.
+7. Update `publish.sh` paths.
+8. Update `.gitignore` if it referenced the old name (it doesn't).
+9. `dotnet build` and `dotnet publish -c Release` for each platform must
+   succeed.
+
+**Acceptance:** Build succeeds. App launches and on Windows writes its
+data to `%LOCALAPPDATA%\DevToolsManager\`; Linux to
+`~/.local/share/dev-tools-manager/`. Title bar says "Dev Tools Manager".
 
 ### Phase 2 — Extend `IPlatformIntegration` for IDEs
 
@@ -730,74 +819,63 @@ gracefully.
 **Acceptance:** read pre-existing state.json (schema 1) without errors;
 write state.json (schema 2) and re-load round-trips correctly.
 
-### Phase 6 — UI redesign (tabs + IDE views)
+### Phase 6 — UI redesign: 4 tabs
 
 1. Replace `MainWindow.axaml` left-nav with a `TabControl`. Tabs:
-   `Exam Mode`, `.NET SDKs`, `IDEs`, `Settings`.
-2. Create `IdeOverviewPageView` + VM. Hosts an `ItemsControl` of
-   `IdeProductCardView`s (one per known product). Card shows install
-   status, latest available, action button.
-3. Create per-product card VM that wires to `IdeInstaller`,
-   `IdeUninstaller`, `IdeDiscovery`, `JetBrainsCatalogClient`.
-4. Wire bootstrap into Settings tab as a status indicator + optional
-   button. Drop the blocking-page behavior in favor of inline bootstrap
-   from Exam Mode.
-5. Update window title to "Dev Tools Manager" (or similar — final name
-   chosen during UI review).
+   `.NET`, `Rider`, `WebStorm`, `Cleanup`.
+2. Create `ProductTabViewModel` (generic) + `ProductTabView`.
+   - Hosts: latest-version card, primary action button, optional
+     `▾ Show all versions` expander wrapping the existing catalog browser.
+   - Three concrete VMs derive: `DotnetTabViewModel` (uses
+     `ReleasesCatalogClient` + `SdkInstaller`), `RiderTabViewModel`
+     (uses `JetBrainsCatalogClient(Rider)` + `IdeInstaller`),
+     `WebStormTabViewModel` (same client, product=WebStorm).
+3. Adapt the existing `CatalogPageView` into a sub-component reused by the
+   `Show all versions` expander on the .NET tab. The existing per-channel
+   collapse-and-load behavior stays as-is.
+4. Build a similar all-versions browser for JetBrains products (flat
+   release list, latest-on-top, latest-N visible with "show older").
+5. Create `CleanupTabViewModel` + `CleanupTabView` per §5.4. Reuses
+   `SdkDiscovery`, `IdeDiscovery`, `SdkUninstaller`, new `IdeUninstaller`.
+   Per-row: lazy-computed size via `Directory.EnumerateFiles(path,
+   "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length)`,
+   one-shot per session.
+6. Bootstrap behavior change: `DotnetTabViewModel.InstallAsync` calls
+   `BootstrapManager.EnsureAsync(ct)` first if `state.Bootstrapped` is
+   false. Extract this from the deleted `BootstrapPageViewModel`. The
+   first-launch code in `App.axaml.cs` no longer routes to a bootstrap
+   page when un-bootstrapped — it routes to the .NET tab as normal.
+7. Delete `BootstrapPageView*` files.
 
-**Acceptance:** Manual: open app, verify each tab loads without errors,
-verify Rider card shows correct state when installed/not-installed.
+**Acceptance:** Manual: launch app, verify each of the four tabs loads.
+On a fresh data dir, .NET tab shows "Not installed". Click Install. Verify
+PATH set, SDK installed, button transitions to "✓ Up to date." Rider tab
+similar. WebStorm tab similar. Cleanup tab lists what was just installed
+with computed sizes; remove operations work and active versions are
+protected.
 
-### Phase 7 — Exam Mode flow
-
-`ExamModePageViewModel.PrepareAsync()`:
-
-```
-1. Load AppState; ensure bootstrapped (call platform.WriteEnvironmentAsync silently).
-2. Fetch latest .NET SDK (channel index → first STS/LTS release) and latest Rider release.
-3. Compute "needs":
-     needsSdk    = latestSdk.Version    not in installed managed SDKs
-     needsRider  = latestRider.Version  not in installed Rider versions
-4. If !(needsSdk || needsRider): set status "All set" and return.
-5. Run downloads in parallel:
-     var sdkTask   = needsSdk   ? _sdkInstaller.InstallAsync(latestSdk, sdkProgress, ct)   : Task.FromResult(null);
-     var riderTask = needsRider ? _ideInstaller.InstallAsync(latestRider, riderProgress, ct) : Task.FromResult(null);
-     await Task.WhenAll(sdkTask, riderTask);
-6. If SDK installed: _sdkUninstaller.SwitchDefaultAsync(latestSdk); update state.ActiveVersion.
-7. If Rider installed: state.ActiveIdes["RD"] = latestRider.Version; persist.
-8. Show "All set! Open Rider →" button.
-```
-
-Two `IProgress<InstallProgress>` instances feed two progress bars in the
-UI. Aggregate progress is just `(sdkPercent + riderPercent) / 2`.
-
-Failure modes:
-- Network down → catalog falls back to cache (already implemented).
-- Hash mismatch → fail loudly, friendly message + retry button.
-- Disk full → friendly message, no retry.
-- Cancellation: leave staging dirs cleaned (already handled in
-  `ProductInstaller`).
-
-**Acceptance:** on a clean Windows VM and a clean Linux VM:
-1. App launches with no SDK / no Rider.
-2. Click "Prepare this PC" once.
-3. ~5 minutes later (depending on bandwidth): SDK installed, Rider
-   installed, shortcut on Start Menu / app menu, click shortcut, Rider
-   opens, "About" shows expected version.
-4. New project → C# console → run → "Hello, World!" on stdout.
-
-### Phase 8 — Build, package, smoke-test
+### Phase 7 — Build, package, smoke-test
 
 1. `./publish.sh` → produces single-file binaries for win-x64 and linux-x64.
-2. Run on a clean Windows VM: walk Phase 7 acceptance.
-3. Run on a clean Linux VM: walk Phase 7 acceptance.
-4. Verify: re-running Exam Mode after success is a no-op ("All set").
-5. Verify: switching default SDK while Rider installed shows "restart Rider"
-   hint and works after restart.
-6. Verify: removing the active link manually triggers re-bootstrap on next
-   launch (existing reconcile logic).
-7. Verify: sideload path works for both SDK and IDE archives (drop file
-   into sideload-ides/, verify it surfaces in catalog and installs).
+2. Run on a clean Windows VM:
+   - Open .NET tab, click Install latest. Wait. Verify status "✓ Up to date".
+   - Open Rider tab, click Install latest. Wait. Click `Open Rider`.
+     Rider launches; About shows expected version.
+   - In Rider: New Project → C# Console App on the .NET we just installed.
+     Click Run. Stdout shows "Hello, World!".
+   - Open Cleanup tab. Verify managed SDK + Rider listed with sizes.
+     Remove a non-active SDK; verify it disappears from disk.
+3. Run on a clean Linux VM: same walkthrough. Confirm `.desktop` entry
+   appears in the application menu and the wrapper script propagates
+   `DOTNET_ROOT` so Rider sees the active SDK.
+4. Verify on both platforms: re-clicking Install when already up-to-date
+   is impossible (button has changed state); re-entering tab re-fetches
+   catalog without errors.
+5. Verify: removing the active link manually outside the app triggers
+   re-bootstrap on next .NET install (existing reconcile logic).
+6. Verify: sideload path works for both SDK and IDE archives (drop file
+   into `sideload/` or `sideload-ides/`, verify it surfaces and installs).
+7. Verify: WebStorm tab end-to-end flow on at least one platform.
 
 ---
 
@@ -862,20 +940,24 @@ These are the things most likely to silently break the exam-day experience.
 
 ## 11. Open questions
 
-Each of these has a default answer in the plan, but they're worth raising
-when implementing:
+These remain to be decided during implementation:
 
-1. **Project rename** (§3.2) — keep namespaces or rename? *Default: keep.*
-2. **Self-contained config default** (§3.8) — on or off? *Default: off
-   (user can toggle in Settings).* Schools may want a deployed config that
-   forces it on.
-3. **Window title / app name** for the rebrand — "Dev Tools Manager"?
-   *Default: pick during Phase 6 with the user.*
-4. **Multiple IDE versions retained** vs always-replace — *Default:
-   support multi-version, default UI shows latest only.*
-5. **Auto-update of the app itself** — out of scope; `publish.sh` builds a
-   single-file binary that the school admin re-deploys. Confirm.
-6. **Telemetry / crash reporting** — out of scope. Confirm.
+1. **Auto-update of the app itself** — *Default: out of scope.* `publish.sh`
+   builds a single-file binary that the school admin re-deploys with each
+   image. Confirm before Phase 7.
+2. **Telemetry / crash reporting** — *Default: out of scope.* Confirm.
+3. **WebStorm: any product-specific quirks?** — discovered during Phase 4
+   smoke testing. The catalog endpoint is symmetric with Rider, so the
+   default expectation is "drop in a new enum value, ship." Verify with a
+   real install in Phase 7.
+
+Already settled (do NOT re-litigate):
+
+- Project name: `DevToolsManager` (§3.2).
+- Self-contained config: not implemented (§3.8).
+- Tab structure: `.NET / Rider / WebStorm / Cleanup` (§5.1).
+- Multi-version IDE installs: supported, exposed via Cleanup tab (§5.4).
+- Bootstrap: invisible, runs on first .NET install (§5.3).
 
 ---
 
