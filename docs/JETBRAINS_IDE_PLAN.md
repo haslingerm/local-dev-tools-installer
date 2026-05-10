@@ -950,6 +950,20 @@ These remain to be decided during implementation:
    smoke testing. The catalog endpoint is symmetric with Rider, so the
    default expectation is "drop in a new enum value, ship." Verify with a
    real install in Phase 7.
+4. **`build.txt` exact format** — Phase 4 catalog returns build numbers
+   like `261.23567.144`; archive's `build.txt` is expected to contain
+   `RD-261.23567.144`. The smoke test (`Install/IdeSmokeTest.cs`) uses a
+   substring match to handle both. Confirm against a real archive in
+   Phase 7; if it turns out the formats are equal, simplify back to
+   exact match.
+5. **`IdeUninstaller` scope** — implement as part of Phase 6 (Cleanup tab
+   is the only consumer). Should mirror `SdkUninstaller` minus the
+   stub / environment fallback logic. When uninstalling the active
+   version, pick the next-most-recent installed version of that product
+   to be the new active; if none, remove the active link AND the
+   shortcut.
+6. **Branch publish timing** — `feat/jetbrains-ide-installer` is local
+   only. Decide whether to push it before or after Phase 7 testing.
 
 Already settled (do NOT re-litigate):
 
@@ -958,25 +972,100 @@ Already settled (do NOT re-litigate):
 - Tab structure: `.NET / Rider / WebStorm / Cleanup` (§5.1).
 - Multi-version IDE installs: supported, exposed via Cleanup tab (§5.4).
 - Bootstrap: invisible, runs on first .NET install (§5.3).
+- Smoke test for IDEs: build.txt substring match (Phase 4 decision; see
+  open item #4 above for verification).
 
 ---
 
-## 12. Session resumption checklist
+## 12. Current status — resume here
 
-If you're picking this up cold, do this:
+**Branch:** `feat/jetbrains-ide-installer` (local only, not pushed).
 
-1. `git switch feat/jetbrains-ide-installer` — make sure you're on the
-   right branch.
-2. `git log --oneline` — see how far implementation has progressed.
-3. Re-read this file end-to-end.
-4. `TaskList` — see remaining phases. If the task list is empty (new
-   session), the phases in §7 map 1:1 to tasks; recreate them.
-5. `dotnet build` and `./publish.sh` should both succeed before adding new
-   work to a phase.
-6. Look at the most recent commit message for any deviations from the plan;
-   update this file if the plan changed.
+**Last verified:** `dotnet build DevToolsManager.slnx` and the same with
+`-c Release` both succeed with 0 warnings, 0 errors.
+
+### Done (commits, newest first)
+
+| Phase | Commit  | Summary |
+|---|---|---|
+| 4 | `863c04a` | JetBrains catalog client + `IdeInstaller` + smoke / discovery / sideload (Core fully wired). |
+| 3 | `23c6c3e` | Extracted `ProductInstaller` from `SdkInstaller`; SDK install path unchanged behaviorally. |
+| 2 | `159b6cc` | Platform additions: `IdeInstallRoot`, IDE link, `IShellLinkW` shortcut on Windows, `.desktop` + wrapper-script shortcut on Linux. |
+| 1 | `71d19e3` | Rebrand: `DotnetSdkManager` → `DevToolsManager` (namespaces, paths, markers, window title). |
+|   | `2ed5b32` | Plan revised to user's decisions (drop self-contained config, 4-tab UI). |
+|   | `5dc05c8` | Initial plan committed. |
+
+`git log --oneline feat/jetbrains-ide-installer` shows the same.
+
+### Next: Phase 5 — extend `AppState` with `ActiveIdes`
+
+Small. Single-commit-sized. Concrete steps:
+
+1. Open `DevToolsManager.Core/Models/AppState.cs`.
+2. Bump `SchemaVersion` default to `2`.
+3. Add `public Dictionary<string, string> ActiveIdes { get; set; } = new();`
+   (keyed by `JetBrainsProductInfo.Code(product)`, e.g. `"RD"`, value =
+   active version like `"2026.1.1"`).
+4. Verify `StateManager.Load` round-trips an old (schema-1) state.json
+   correctly — current loader already swallows parse failures and returns
+   a fresh state, so the worst case is a clean reset, which is acceptable.
+   Even better: a missing `ActiveIdes` field will deserialize to the
+   default empty dict (System.Text.Json default behavior). No migration
+   code needed.
+5. `dotnet build` clean.
+6. Commit: `feat(state): AppState v2 with ActiveIdes`.
+
+### Then: Phase 6 — UI redesign (the largest remaining phase)
+
+Spec is in §5 and §7-Phase-6. Bring `IdeUninstaller` into this phase
+(see open item below) since it's a Cleanup-tab dependency. Expect this to
+span more than one session.
+
+### Phase 7 — final smoke-test
+
+Need a clean Windows VM and a clean Linux VM (or fresh user accounts).
+Walk through §7-Phase-7 acceptance steps. **Save real Windows / Linux
+testing for when both VMs are reachable** — Phase 6 can land before Phase 7
+runs.
+
+### Cold-start checklist
+
+If picking up in a fresh session with no chat history:
+
+1. `git switch feat/jetbrains-ide-installer`.
+2. `git log --oneline` — confirm the commit table above matches.
+3. Re-read this file (§5, §7, §11 are the load-bearing sections; the
+   rest is rationale).
+4. Re-create the tracking task list. Phases in §7 map 1:1 to tasks:
+   Phase 1 → done, Phase 2 → done, Phase 3 → done, Phase 4 → done,
+   Phase 5 → next, Phase 6 → pending, Phase 7 → pending.
+5. `dotnet build DevToolsManager.slnx` should succeed before adding new
+   work.
+6. If you change a decision while implementing, edit this file in the
+   same commit.
+
+### Open items I'd flag before starting Phase 5
+
+Cross-referenced with §11. Read §11 first if these mention things you
+don't recognize.
+
+- **`build.txt` format**: Phase 4's smoke test does substring-match
+  defensively because the catalog returns `261.23567.144` while the
+  archive likely has `RD-261.23567.144`. Confirm during Phase 7 with a
+  real install. If mismatched, fix in `Install/IdeSmokeTest.cs`.
+- **`IdeUninstaller`**: not yet built. Plan §4.1 lists it; it's a small
+  mirror of `SdkUninstaller` (no env / stub logic — just delete the
+  version dir, switch active link if removing the active one, remove
+  shortcut if no versions left). Fold into Phase 6 since the Cleanup
+  tab is its only consumer.
+- **Branch is unpublished**: `feat/jetbrains-ide-installer` exists only
+  locally. Push when ready, or keep local until Phase 7 passes.
+- **Self-test build.txt now-ish**: optional but cheap — extract
+  `build.txt` from a small JetBrains archive (any IDE, smaller than
+  Rider's 2GB — IntelliJ Community is ~1GB) before Phase 7 to confirm
+  format ahead of full smoke testing.
 
 ---
 
-*End of plan. Edit this file as decisions evolve; treat it as the single
-source of truth for the branch.*
+*Edit this file as decisions evolve; treat it as the single source of
+truth for the branch.*
