@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using DevToolsManager.Core.Catalog.JetBrains;
 using DevToolsManager.Core.Models;
 using DevToolsManager.Core.Platform;
+using DevToolsManager.Core.State;
 using DevToolsManager.Core.Util;
 
 namespace DevToolsManager.Core.Install;
@@ -17,16 +18,19 @@ public sealed class IdeInstaller
     private readonly IPlatformIntegration _platform;
     private readonly ProductInstaller _productInstaller;
     private readonly JetBrainsCatalogClient _catalog;
+    private readonly StateManager _stateManager;
     private readonly IdeSmokeTest _smokeTest = new();
 
     public IdeInstaller(
         IPlatformIntegration platform,
         ProductInstaller productInstaller,
-        JetBrainsCatalogClient catalog)
+        JetBrainsCatalogClient catalog,
+        StateManager stateManager)
     {
         _platform = platform;
         _productInstaller = productInstaller;
         _catalog = catalog;
+        _stateManager = stateManager;
     }
 
     public async Task<string> InstallAsync(
@@ -35,6 +39,7 @@ public sealed class IdeInstaller
         CancellationToken ct = default)
     {
         PathSafety.RequireValidIdeVersion(release.Version, nameof(release.Version));
+        EnsureNotRunning(release.Product);
 
         var slug = JetBrainsProductInfo.Slug(release.Product);
         var productRoot = PathSafety.CombineSafe(_platform.IdeInstallRoot, slug);
@@ -79,6 +84,10 @@ public sealed class IdeInstaller
         var activeRoot = Path.Combine(productRoot, "active");
         await _platform.CreateOrUpdateShortcutAsync(BuildShortcutSpec(release.Product, activeRoot), ct);
 
+        var state = _stateManager.Load();
+        state.ActiveIdes[JetBrainsProductInfo.Code(release.Product)] = release.Version;
+        _stateManager.Save(state);
+
         return installedDir;
     }
 
@@ -104,6 +113,41 @@ public sealed class IdeInstaller
 
         // Fall back: the smoke test will surface a clear error pointing at this dir.
         return extractedDir;
+    }
+
+    /// <summary>
+    /// Plan §8.8 — refuse to install if a previous instance is still running and
+    /// holding bin/*.exe open. On Linux mmap'd files can be unlinked but writing
+    /// over them may crash the running IDE, so we warn on both platforms.
+    /// </summary>
+    private static void EnsureNotRunning(JetBrainsProduct product)
+    {
+        var processNames = product switch
+        {
+            JetBrainsProduct.Rider => new[] { "rider64", "rider" },
+            JetBrainsProduct.WebStorm => new[] { "webstorm64", "webstorm" },
+            _ => Array.Empty<string>(),
+        };
+        foreach (var name in processNames)
+        {
+            try
+            {
+                if (System.Diagnostics.Process.GetProcessesByName(name).Length > 0)
+                {
+                    throw new InvalidOperationException(
+                        $"{JetBrainsProductInfo.DisplayName(product)} appears to be running. " +
+                        "Close it before installing or updating.");
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                throw;
+            }
+            catch
+            {
+                // best-effort detection; never block install due to a probe error.
+            }
+        }
     }
 
     private static IdeShortcutSpec BuildShortcutSpec(JetBrainsProduct product, string activeRoot)
