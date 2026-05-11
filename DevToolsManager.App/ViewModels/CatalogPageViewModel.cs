@@ -25,6 +25,7 @@ public partial class CatalogPageViewModel : ViewModelBase
     private readonly SideloadScanner _sideloadScanner;
     private readonly IPlatformIntegration _platform;
     private readonly StateManager _stateManager;
+    private readonly BootstrapManager _bootstrap;
 
     [ObservableProperty]
     private ObservableCollection<ReleaseChannelViewModel> _channels = [];
@@ -41,7 +42,8 @@ public partial class CatalogPageViewModel : ViewModelBase
         SdkDiscovery discovery,
         SideloadScanner sideloadScanner,
         IPlatformIntegration platform,
-        StateManager stateManager)
+        StateManager stateManager,
+        BootstrapManager bootstrap)
     {
         _catalog = catalog;
         _installer = installer;
@@ -49,7 +51,10 @@ public partial class CatalogPageViewModel : ViewModelBase
         _sideloadScanner = sideloadScanner;
         _platform = platform;
         _stateManager = stateManager;
+        _bootstrap = bootstrap;
     }
+
+    public bool HasLoaded { get; private set; }
 
     [RelayCommand]
     private async Task LoadCatalogAsync(CancellationToken ct)
@@ -131,6 +136,8 @@ public partial class CatalogPageViewModel : ViewModelBase
             {
                 StatusMessage = "";
             }
+
+            HasLoaded = true;
         }
         finally
         {
@@ -258,6 +265,8 @@ public partial class CatalogPageViewModel : ViewModelBase
 
         try
         {
+            // Plan §5.3 — bootstrap is invisible; runs on first .NET install.
+            await _bootstrap.EnsureAsync(ct);
             await _installer.InstallAsync(item.Release, progress, ct);
             item.IsInstalled = true;
             item.StatusMessage = "Installed successfully.";

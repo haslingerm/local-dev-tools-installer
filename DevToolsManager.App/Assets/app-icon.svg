@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1E88E5"/>
+      <stop offset="1" stop-color="#1565C0"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background -->
+  <rect x="0" y="0" width="256" height="256" rx="48" ry="48" fill="url(#bg)"/>
+  <!-- Download arrow shaft -->
+  <rect x="112" y="48" width="32" height="100" rx="6" fill="#ffffff"/>
+  <!-- Download arrow head (chevron) -->
+  <path d="M 60 132 L 128 200 L 196 132 Z" fill="#ffffff"/>
+  <!-- Install/landing surface -->
+  <rect x="48" y="216" width="160" height="20" rx="6" fill="#ffffff" opacity="0.95"/>
+</svg>

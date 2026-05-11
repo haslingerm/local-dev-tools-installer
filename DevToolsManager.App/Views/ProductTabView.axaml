@@ -1,0 +1,96 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DevToolsManager.App.ViewModels"
+             x:Class="DevToolsManager.App.Views.ProductTabView"
+             x:DataType="vm:ProductTabViewModel">
+
+    <DockPanel Margin="24,20,24,20">
+
+        <!-- Header -->
+        <StackPanel DockPanel.Dock="Top" Spacing="2" Margin="0,0,0,16">
+            <TextBlock Text="{Binding DisplayName}" FontSize="22" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding Tagline}"
+                       FontSize="13"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                       IsVisible="{Binding Tagline, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+        </StackPanel>
+
+        <!-- Loading shimmer -->
+        <StackPanel DockPanel.Dock="Top" IsVisible="{Binding IsLoading}" Spacing="6" Margin="0,0,0,12">
+            <TextBlock Text="Loading latest release…"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+            <ProgressBar IsIndeterminate="True" Height="3"/>
+        </StackPanel>
+
+        <!-- Catalog error -->
+        <Border DockPanel.Dock="Top"
+                IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                CornerRadius="6" Padding="12" Margin="0,0,0,12">
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap"/>
+        </Border>
+
+        <!-- Latest card -->
+        <Border DockPanel.Dock="Top"
+                IsVisible="{Binding ShowLatestCard}"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                CornerRadius="6" Padding="20" Margin="0,0,0,12">
+            <StackPanel Spacing="14">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="Latest:" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding LatestVersion}" FontSize="15" FontWeight="SemiBold"/>
+                </StackPanel>
+
+                <TextBlock Text="{Binding StatusLabel}"
+                           FontSize="13"
+                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+
+                <!-- Primary install button -->
+                <Button Content="{Binding InstallButtonLabel}"
+                        Command="{Binding InstallLatestCommand}"
+                        IsVisible="{Binding ShowInstallButton}"
+                        HorizontalAlignment="Left"
+                        Padding="20,8"
+                        FontSize="14"
+                        FontWeight="SemiBold"/>
+
+                <!-- Open button (IDE tabs only) -->
+                <Button Content="{Binding DisplayName, StringFormat='Open {0}'}"
+                        Command="{Binding OpenCommand}"
+                        IsVisible="{Binding ShowOpenButton}"
+                        HorizontalAlignment="Left"
+                        Padding="20,8"
+                        FontSize="14"/>
+
+                <!-- Install progress -->
+                <StackPanel IsVisible="{Binding ShowProgress}" Spacing="6">
+                    <ProgressBar Value="{Binding ProgressPercent}" Maximum="100" Height="6"/>
+                    <TextBlock Text="{Binding ProgressMessage}" FontSize="12"/>
+                </StackPanel>
+
+                <!-- Success toast -->
+                <TextBlock Text="{Binding ToastMessage}"
+                           IsVisible="{Binding ToastMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                           Foreground="{DynamicResource SystemAccentColor}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Show all versions toggle -->
+        <Button DockPanel.Dock="Top"
+                Background="Transparent"
+                BorderThickness="0"
+                HorizontalContentAlignment="Left"
+                Padding="0,4"
+                Content="{Binding AllVersionsToggleLabel}"
+                Command="{Binding ToggleAllVersionsCommand}"/>
+
+        <!-- All-versions expander content -->
+        <Border IsVisible="{Binding ShowAllVersions}"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                CornerRadius="6" Padding="12" Margin="0,4,0,0">
+            <ContentControl Content="{Binding AllVersionsBrowser}"/>
+        </Border>
+
+    </DockPanel>
+
+</UserControl>

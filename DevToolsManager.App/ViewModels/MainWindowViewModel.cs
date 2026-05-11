@@ -1,53 +1,54 @@
+using System.Collections.ObjectModel;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 
 namespace DevToolsManager.App.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
-    [ObservableProperty]
-    private ViewModelBase _currentPage = null!;
+    public HomeTabViewModel HomeTab { get; }
+    public ObservableCollection<ProductTabViewModel> ProductTabs { get; }
+    public CleanupTabViewModel CleanupTab { get; }
 
-    private readonly SdkListPageViewModel _sdkListPage;
-    private readonly CatalogPageViewModel _catalogPage;
-    private readonly BootstrapPageViewModel? _bootstrapPage;
+    // Tab order: 0 Home, 1..N ProductTabs, N+1 Cleanup.
+    private const int FirstProductTabIndex = 1;
+
+    [ObservableProperty]
+    private int _selectedTabIndex;
 
     public MainWindowViewModel(
-        SdkListPageViewModel sdkListPage,
-        CatalogPageViewModel catalogPage,
-        BootstrapPageViewModel? bootstrapPage)
+        HomeTabViewModel home,
+        DotnetTabViewModel dotnet,
+        RiderTabViewModel rider,
+        WebStormTabViewModel webStorm,
+        CleanupTabViewModel cleanup)
     {
-        _sdkListPage = sdkListPage;
-        _catalogPage = catalogPage;
-        _bootstrapPage = bootstrapPage;
+        HomeTab = home;
+        ProductTabs = [dotnet, rider, webStorm];
+        CleanupTab = cleanup;
 
-        if (bootstrapPage is not null)
+        // Kick off each tab's initial load — they all start in Loading state.
+        foreach (var tab in ProductTabs)
         {
-            CurrentPage = bootstrapPage;
+            _ = tab.RefreshCommand.ExecuteAsync(CancellationToken.None);
         }
-        else
-        {
-            ShowSdkList();
-        }
+        _ = CleanupTab.RefreshCommand.ExecuteAsync(CancellationToken.None);
     }
 
-    [RelayCommand]
-    private void ShowSdkList()
+    partial void OnSelectedTabIndexChanged(int value)
     {
-        _sdkListPage.Refresh();
-        CurrentPage = _sdkListPage;
-    }
-
-    [RelayCommand]
-    private async Task ShowCatalogAsync()
-    {
-        CurrentPage = _catalogPage;
-        if (!_catalogPage.LoadCatalogCommand.IsRunning)
+        // Re-fetch on tab entry. Plan §5.5: no auto-update notifications;
+        // freshness is bounded by tab entry.
+        var productIdx = value - FirstProductTabIndex;
+        if (productIdx >= 0 && productIdx < ProductTabs.Count)
         {
-            await _catalogPage.LoadCatalogCommand.ExecuteAsync(null);
+            _ = ProductTabs[productIdx].RefreshCommand.ExecuteAsync(CancellationToken.None);
         }
+        else if (value == FirstProductTabIndex + ProductTabs.Count)
+        {
+            _ = CleanupTab.RefreshCommand.ExecuteAsync(CancellationToken.None);
+        }
+        // value == 0 (Home) is a static page — nothing to refresh.
     }
-
-    public bool HasBootstrap => _bootstrapPage is not null;
 }

@@ -41,12 +41,11 @@ public partial class App : Application
     {
         var platform = services.GetRequiredService<IPlatformIntegration>();
         var stateManager = services.GetRequiredService<StateManager>();
-        var stubManager = services.GetRequiredService<StubManager>();
         var state = stateManager.Load();
 
-        // Reconcile saved Bootstrapped flag with the live environment. If the user edited their
-        // shell rc files or registry, IsBootstrapped() returns false even when state.Bootstrapped
-        // was true. Trust the live check.
+        // Reconcile saved Bootstrapped flag with the live environment. If the
+        // user edited their shell rc files or registry, IsBootstrapped() returns
+        // false even when state.Bootstrapped was true. Trust the live check.
         var liveBootstrapped = platform.IsBootstrapped();
         if (state.Bootstrapped != liveBootstrapped)
         {
@@ -54,21 +53,7 @@ public partial class App : Application
             stateManager.Save(state);
         }
 
-        var sdkList = services.GetRequiredService<SdkListPageViewModel>();
-        var catalog = services.GetRequiredService<CatalogPageViewModel>();
-
-        BootstrapPageViewModel? bootstrap = null;
-        if (!state.Bootstrapped)
-        {
-            bootstrap = new BootstrapPageViewModel(platform, stateManager, stubManager);
-        }
-
-        var mainVm = new MainWindowViewModel(sdkList, catalog, bootstrap);
-
-        if (bootstrap is not null)
-            bootstrap.OnBootstrapped = () => mainVm.ShowCatalogCommand.Execute(null);
-
-        return mainVm;
+        return services.GetRequiredService<MainWindowViewModel>();
     }
 
     private static IServiceProvider BuildServices()
@@ -110,15 +95,28 @@ public partial class App : Application
         sc.AddSingleton<SideloadScanner>();
         sc.AddSingleton<IdeSideloadScanner>();
         sc.AddSingleton<StubManager>();
+        sc.AddSingleton<BootstrapManager>();
         sc.AddSingleton(p => new SdkUninstaller(
             p.GetRequiredService<IPlatformIntegration>(),
             p.GetRequiredService<IProcessRunner>(),
             p.GetRequiredService<SdkDiscovery>(),
             p.GetRequiredService<StateManager>(),
             p.GetRequiredService<StubManager>()));
+        sc.AddSingleton<IdeUninstaller>();
 
-        sc.AddTransient<SdkListPageViewModel>();
         sc.AddTransient<CatalogPageViewModel>();
+        sc.AddTransient<HomeTabViewModel>();
+        sc.AddTransient<DotnetTabViewModel>();
+        sc.AddTransient<RiderTabViewModel>();
+        sc.AddTransient<WebStormTabViewModel>();
+        sc.AddTransient<CleanupTabViewModel>(p => new CleanupTabViewModel(
+            p.GetRequiredService<SdkDiscovery>(),
+            p.GetRequiredService<IdeDiscovery>(),
+            p.GetRequiredService<SdkUninstaller>(),
+            p.GetRequiredService<IdeUninstaller>(),
+            p.GetRequiredService<StateManager>(),
+            onSdkChanged: () => { /* Cleanup tab self-refreshes */ }));
+        sc.AddTransient<MainWindowViewModel>();
 
         return sc.BuildServiceProvider();
     }

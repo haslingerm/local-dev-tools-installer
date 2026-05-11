@@ -18,16 +18,22 @@ public class ViewLocator : IDataTemplate
     {
         if (param is null)
             return null;
-        
-        var name = param.GetType().FullName!.Replace("ViewModel", "View", StringComparison.Ordinal);
-        var type = Type.GetType(name);
 
-        if (type != null)
+        // Walk up the inheritance chain so derived VMs without their own view
+        // (e.g. DotnetTabViewModel) resolve to a base view (ProductTabView).
+        var vmType = param.GetType();
+        while (vmType is not null && vmType != typeof(object))
         {
-            return (Control)Activator.CreateInstance(type)!;
+            var name = vmType.FullName!.Replace("ViewModel", "View", StringComparison.Ordinal);
+            var viewType = Type.GetType(name);
+            if (viewType is not null)
+            {
+                return (Control)Activator.CreateInstance(viewType)!;
+            }
+            vmType = vmType.BaseType;
         }
-        
-        return new TextBlock { Text = "Not Found: " + name };
+
+        return new TextBlock { Text = "Not Found: " + param.GetType().FullName };
     }
 
     public bool Match(object? data)
