@@ -48,4 +48,16 @@ public interface IPlatformIntegration
         string productSlug,
         string displayName,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Launches the installed IDE identified by <paramref name="productSlug"/>.
+    /// On Linux, the generated wrapper script (which exports <c>DOTNET_ROOT</c> / <c>PATH</c>
+    /// so the IDE sees the managed SDK) is used when available; the raw
+    /// <paramref name="executablePath"/> is used as a fallback.
+    /// On Windows, <paramref name="executablePath"/> is launched directly.
+    /// </summary>
+    public ValueTask LaunchIdeAsync(
+        string productSlug,
+        string executablePath,
+        CancellationToken ct = default);
 }

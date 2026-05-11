@@ -48,6 +48,7 @@ public sealed partial class CleanupTabViewModel : ViewModelBase
     private bool _isLoading;
 
     private CancellationTokenSource? _confirmCts;
+    private CancellationTokenSource? _sizeCts;
 
     public CleanupTabViewModel(
         SdkDiscovery sdkDiscovery,
@@ -68,6 +69,12 @@ public sealed partial class CleanupTabViewModel : ViewModelBase
     [RelayCommand]
     public async Task RefreshAsync(CancellationToken ct)
     {
+        // Cancel any in-progress size computation from a previous refresh.
+        _sizeCts?.Cancel();
+        _sizeCts?.Dispose();
+        _sizeCts = new CancellationTokenSource();
+        var sizeCt = _sizeCts.Token;
+
         IsLoading = true;
         try
         {
@@ -102,7 +109,7 @@ public sealed partial class CleanupTabViewModel : ViewModelBase
             }
 
             Groups = new ObservableCollection<CleanupGroupViewModel>(groups);
-            _ = Task.Run(() => ComputeSizesAsync(groups, ct), ct);
+            _ = Task.Run(() => ComputeSizesAsync(groups, sizeCt), sizeCt);
         }
         finally
         {
@@ -118,13 +125,16 @@ public sealed partial class CleanupTabViewModel : ViewModelBase
             foreach (var item in group.Items)
             {
                 if (ct.IsCancellationRequested) return;
-                var size = await Task.Run(() => DirectorySize(item.InstallPath), ct);
+                var size = DirectorySize(item.InstallPath);
                 Avalonia.Threading.Dispatcher.UIThread.Post(() => item.SizeBytes = size);
                 total += size;
             }
         }
         var snapshot = total;
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => TotalLabel = FormatSize(snapshot));
+        if (!ct.IsCancellationRequested)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => TotalLabel = FormatSize(snapshot));
+        }
     }
 
     private static long DirectorySize(string path)

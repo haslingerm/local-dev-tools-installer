@@ -28,4 +28,30 @@ public sealed class CliWrapProcessRunner : IProcessRunner
             return new ProcessResult(-1, "", $"Process timed out after {timeoutSeconds}s");
         }
     }
+
+    public ValueTask LaunchAsync(
+        string executable,
+        IEnumerable<string> args,
+        CancellationToken ct = default)
+    {
+        // Start the process and do not wait for it to exit — GUI applications run
+        // independently of this process.  Unhandled failures (e.g. launch errors)
+        // surface on the background task; we observe them here to avoid unobserved-
+        // exception noise but otherwise do not block the caller.
+        var task = Cli.Wrap(executable)
+            .WithArguments(args)
+            .WithValidation(CommandResultValidation.None)
+            .WithStandardOutputPipe(PipeTarget.Null)
+            .WithStandardErrorPipe(PipeTarget.Null)
+            .ExecuteAsync(ct)
+            .Task;
+
+        _ = task.ContinueWith(
+            t => { _ = t.Exception; },
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
+
+        return ValueTask.CompletedTask;
+    }
 }

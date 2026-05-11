@@ -31,9 +31,9 @@ public partial class MainWindowViewModel : ViewModelBase
         // Kick off each tab's initial load — they all start in Loading state.
         foreach (var tab in ProductTabs)
         {
-            _ = tab.RefreshCommand.ExecuteAsync(CancellationToken.None);
+            _ = tab.RefreshCommand.ExecuteAsync(null);
         }
-        _ = CleanupTab.RefreshCommand.ExecuteAsync(CancellationToken.None);
+        _ = CleanupTab.RefreshCommand.ExecuteAsync(null);
     }
 
     partial void OnSelectedTabIndexChanged(int value)
@@ -43,11 +43,11 @@ public partial class MainWindowViewModel : ViewModelBase
         var productIdx = value - FirstProductTabIndex;
         if (productIdx >= 0 && productIdx < ProductTabs.Count)
         {
-            _ = ProductTabs[productIdx].RefreshCommand.ExecuteAsync(CancellationToken.None);
+            _ = ProductTabs[productIdx].RefreshCommand.ExecuteAsync(null);
         }
         else if (value == FirstProductTabIndex + ProductTabs.Count)
         {
-            _ = CleanupTab.RefreshCommand.ExecuteAsync(CancellationToken.None);
+            _ = CleanupTab.RefreshCommand.ExecuteAsync(null);
         }
         // value == 0 (Home) is a static page — nothing to refresh.
     }

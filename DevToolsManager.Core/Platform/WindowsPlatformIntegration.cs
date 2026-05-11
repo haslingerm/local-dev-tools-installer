@@ -211,6 +211,16 @@ public sealed class WindowsPlatformIntegration : IPlatformIntegration
         return ValueTask.CompletedTask;
     }
 
+    public ValueTask LaunchIdeAsync(
+        string productSlug,
+        string executablePath,
+        CancellationToken ct = default)
+    {
+        // On Windows the environment is set via registry (WriteEnvironmentAsync) and is
+        // inherited by child processes, so launching the executable directly is correct.
+        return _runner.LaunchAsync(executablePath, [], ct);
+    }
+
     public async ValueTask<string> RunInShellAsync(string command, int timeoutSeconds = 30, CancellationToken ct = default)
     {
         var result = await _runner.RunAsync("cmd", ["/c", command], timeoutSeconds, ct);

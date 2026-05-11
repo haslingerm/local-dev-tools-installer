@@ -283,6 +283,22 @@ public sealed class LinuxPlatformIntegration : IPlatformIntegration
         return ValueTask.CompletedTask;
     }
 
+    public ValueTask LaunchIdeAsync(
+        string productSlug,
+        string executablePath,
+        CancellationToken ct = default)
+    {
+        PathSafety.RequireValidFileName(productSlug, nameof(productSlug));
+        var slug = productSlug.ToLowerInvariant();
+        var wrapperPath = Path.Combine(ShortcutDir, $"{slug}-launcher.sh");
+
+        // Prefer the generated wrapper script so that DOTNET_ROOT / PATH are set
+        // even when the app was launched from a desktop environment that did not
+        // source the user's shell RC files.
+        var launcher = File.Exists(wrapperPath) ? wrapperPath : executablePath;
+        return _runner.LaunchAsync(launcher, [], ct);
+    }
+
     public async ValueTask<string> RunInShellAsync(string command, int timeoutSeconds = 30, CancellationToken ct = default)
     {
         var result = await _runner.RunAsync("bash", ["-lc", command], timeoutSeconds, ct);

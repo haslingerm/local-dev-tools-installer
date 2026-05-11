@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -104,11 +103,12 @@ public abstract class JetBrainsTabViewModel : ProductTabViewModel
         await _installer.InstallAsync(_latestRelease, progress, ct);
     }
 
-    protected override Task LaunchInstalledAsync()
+    protected override async Task LaunchInstalledAsync()
     {
+        var slug = JetBrainsProductInfo.Slug(Product);
         var activeLauncher = Path.Combine(
             _platform.IdeInstallRoot,
-            JetBrainsProductInfo.Slug(Product),
+            slug,
             "active",
             JetBrainsProductInfo.LauncherForCurrentOs(Product));
 
@@ -117,13 +117,7 @@ public abstract class JetBrainsTabViewModel : ProductTabViewModel
             throw new FileNotFoundException($"Launcher not found: {activeLauncher}");
         }
 
-        var psi = new ProcessStartInfo
-        {
-            FileName = activeLauncher,
-            UseShellExecute = true,
-        };
-        Process.Start(psi);
-        return Task.CompletedTask;
+        await _platform.LaunchIdeAsync(slug, activeLauncher);
     }
 
     protected override async Task OnAllVersionsExpandedAsync()
