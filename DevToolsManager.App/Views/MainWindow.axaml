@@ -1,0 +1,38 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DevToolsManager.App.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="620"
+        x:Class="DevToolsManager.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Dev Tools Manager"
+        Icon="/Assets/app-icon.png"
+        Width="900" Height="620"
+        MinWidth="700" MinHeight="450">
+
+    <DockPanel>
+
+        <!-- Always-visible footer: system installs are out of scope -->
+        <Border DockPanel.Dock="Bottom"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="16,6">
+            <TextBlock FontSize="11"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                       Text="Note: this tool only manages installs it created itself. Existing system-wide installations of .NET, Rider, WebStorm, or anything from JetBrains Toolbox are left untouched and are not listed here."/>
+        </Border>
+
+        <TabControl SelectedIndex="{Binding SelectedTabIndex}" Padding="0">
+            <TabItem Header="Home" Content="{Binding HomeTab}"/>
+            <TabItem Header=".NET SDK" Content="{Binding ProductTabs[0]}"/>
+            <TabItem Header="Rider" Content="{Binding ProductTabs[1]}"/>
+            <TabItem Header="WebStorm" Content="{Binding ProductTabs[2]}"/>
+            <TabItem Header="Cleanup" Content="{Binding CleanupTab}"/>
+        </TabControl>
+
+    </DockPanel>
+
+</Window>

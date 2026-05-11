@@ -1,0 +1,77 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DevToolsManager.App.ViewModels"
+             x:Class="DevToolsManager.App.Views.HomeTabView"
+             x:DataType="vm:HomeTabViewModel">
+
+    <ScrollViewer>
+        <StackPanel Margin="32,24,32,24" Spacing="20" MaxWidth="680" HorizontalAlignment="Left">
+
+            <StackPanel Spacing="6">
+                <TextBlock Text="Welcome to Dev Tools Manager" FontSize="24" FontWeight="SemiBold"/>
+                <TextBlock TextWrapping="Wrap" FontSize="14"
+                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                           Text="A one-click installer for the latest .NET SDK and JetBrains IDEs — no admin rights, no Toolbox, no terminal."/>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock Text="What this tool does" FontSize="16" FontWeight="SemiBold"/>
+                <TextBlock TextWrapping="Wrap"
+                           Text="It downloads and installs the latest version of:"/>
+                <StackPanel Margin="16,4,0,0" Spacing="3">
+                    <TextBlock Text="• .NET SDK — Microsoft's runtime and compiler for C# / F# / VB.NET"/>
+                    <TextBlock Text="• JetBrains Rider — the cross-platform .NET IDE"/>
+                    <TextBlock Text="• JetBrains WebStorm — the JavaScript / TypeScript IDE"/>
+                </StackPanel>
+                <TextBlock TextWrapping="Wrap" Margin="0,4,0,0"
+                           Text="Everything is installed into your user profile, so you don't need administrator rights."/>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock Text="How to use it" FontSize="16" FontWeight="SemiBold"/>
+                <StackPanel Spacing="6">
+                    <TextBlock TextWrapping="Wrap">
+                        <Run FontWeight="SemiBold" Text="1. Pick a tab. "/>
+                        <Run Text="Each product has its own tab — .NET SDK, Rider, WebStorm."/>
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap">
+                        <Run FontWeight="SemiBold" Text="2. Click the big button. "/>
+                        <Run Text="It downloads the latest version, verifies it, and installs it. A progress bar shows what's happening."/>
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap">
+                        <Run FontWeight="SemiBold" Text="3. Open it. "/>
+                        <Run Text="After Rider or WebStorm finishes installing, the same screen offers an &quot;Open&quot; button. For .NET, a fresh terminal or IDE picks it up automatically."/>
+                    </TextBlock>
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock Text="A typical exam-day setup" FontSize="16" FontWeight="SemiBold"/>
+                <StackPanel Spacing="6">
+                    <TextBlock TextWrapping="Wrap"
+                               Text="Sitting down at a school PC with an old summer image? Two clicks get you ready:"/>
+                    <StackPanel Margin="16,0,0,0" Spacing="3">
+                        <TextBlock Text="1. .NET SDK tab → Install latest"/>
+                        <TextBlock Text="2. Rider tab → Install latest, then Open Rider"/>
+                    </StackPanel>
+                    <TextBlock TextWrapping="Wrap"
+                               Text="Rider will see the freshly installed .NET SDK automatically."/>
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock Text="Cleaning up" FontSize="16" FontWeight="SemiBold"/>
+                <TextBlock TextWrapping="Wrap"
+                           Text="The Cleanup tab lists what this tool installed and how much disk space each version uses. Remove old versions you no longer need. The currently active version is protected from accidental deletion."/>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock Text="What it will not touch" FontSize="16" FontWeight="SemiBold"/>
+                <TextBlock TextWrapping="Wrap"
+                           Text="Anything installed by an administrator, by Windows Update, by JetBrains Toolbox, or by a Linux package manager stays as-is. This tool installs alongside, it does not replace."/>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+
+</UserControl>
