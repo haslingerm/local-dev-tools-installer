@@ -981,13 +981,21 @@ Already settled (do NOT re-litigate):
 
 **Branch:** `feat/jetbrains-ide-installer` (local only, not pushed).
 
-**Last verified:** `dotnet build DevToolsManager.slnx` and the same with
-`-c Release` both succeed with 0 warnings, 0 errors.
+**Last verified:**
+- `dotnet build DevToolsManager.slnx` and the same with `-c Release` succeed
+  with 0 warnings, 0 errors.
+- `./publish.sh` produces single-file binaries for `linux-x64` (~48 MB) and
+  `win-x64` (~48 MB) under `publish/`.
+- The Linux artifact starts cleanly in a headless run (terminated by external
+  timeout, not crash).
 
 ### Done (commits, newest first)
 
 | Phase | Commit  | Summary |
 |---|---|---|
+| 6 | _uncommitted_ | UI redesign: 4-tab MainWindow (.NET/Rider/WebStorm/Cleanup), `ProductTabViewModel` base + concrete tabs, `IdeCatalogBrowserViewModel` for "show all versions", `CleanupTabViewModel` with lazy sizes + 2-click confirm. Bootstrap is now invisible (called by `BootstrapManager.EnsureAsync` on first install in `DotnetTabViewModel` and `CatalogPageViewModel`). `BootstrapPageView*` and `SdkListPageView*` files deleted. `ViewLocator` walks up the inheritance chain so derived tab VMs resolve to `ProductTabView`. |
+| 6 | _uncommitted_ | Core: `BootstrapManager` (extracted from old `BootstrapPageViewModel`), `IdeUninstaller` (mirror of `SdkUninstaller` minus env/stub; switches active to next-most-recent or removes shortcut). `IdeInstaller` now records the new active version into `AppState.ActiveIdes`. |
+| 5 | _uncommitted_ | `AppState.SchemaVersion = 2` + `Dictionary<string,string> ActiveIdes`. Backward-compat read is automatic (System.Text.Json defaults the missing dict). |
 | 4 | `863c04a` | JetBrains catalog client + `IdeInstaller` + smoke / discovery / sideload (Core fully wired). |
 | 3 | `23c6c3e` | Extracted `ProductInstaller` from `SdkInstaller`; SDK install path unchanged behaviorally. |
 | 2 | `159b6cc` | Platform additions: `IdeInstallRoot`, IDE link, `IShellLinkW` shortcut on Windows, `.desktop` + wrapper-script shortcut on Linux. |
@@ -995,38 +1003,48 @@ Already settled (do NOT re-litigate):
 |   | `2ed5b32` | Plan revised to user's decisions (drop self-contained config, 4-tab UI). |
 |   | `5dc05c8` | Initial plan committed. |
 
-`git log --oneline feat/jetbrains-ide-installer` shows the same.
+The Phase 5 and Phase 6 changes are sitting on the working tree, not yet
+committed. Split-suggestion when committing:
+- `feat(state): AppState v2 with ActiveIdes`
+- `feat(install): BootstrapManager + IdeUninstaller`
+- `feat(ui): 4-tab redesign — .NET / Rider / WebStorm / Cleanup`
 
-### Next: Phase 5 — extend `AppState` with `ActiveIdes`
+### Phase 7 — final smoke-test (in progress — VM-only items remain)
 
-Small. Single-commit-sized. Concrete steps:
+Code-side prep is done:
+- `./publish.sh` succeeds for both targets; artifacts under `publish/`.
+- `IdeInstaller.EnsureNotRunning` added (§8.8 — refuses install when
+  `rider64` / `rider` / `webstorm64` / `webstorm` processes exist).
+- `IdeSmokeTest` already does substring match per §11.4.
 
-1. Open `DevToolsManager.Core/Models/AppState.cs`.
-2. Bump `SchemaVersion` default to `2`.
-3. Add `public Dictionary<string, string> ActiveIdes { get; set; } = new();`
-   (keyed by `JetBrainsProductInfo.Code(product)`, e.g. `"RD"`, value =
-   active version like `"2026.1.1"`).
-4. Verify `StateManager.Load` round-trips an old (schema-1) state.json
-   correctly — current loader already swallows parse failures and returns
-   a fresh state, so the worst case is a clean reset, which is acceptable.
-   Even better: a missing `ActiveIdes` field will deserialize to the
-   default empty dict (System.Text.Json default behavior). No migration
-   code needed.
-5. `dotnet build` clean.
-6. Commit: `feat(state): AppState v2 with ActiveIdes`.
+Remaining items need a clean VM with display + user clicks:
 
-### Then: Phase 6 — UI redesign (the largest remaining phase)
+1. **Windows VM walkthrough** (single-file `publish/win-x64/DevToolsManager.App.exe`):
+   - .NET tab → Install latest. Verify status flips to "✓ Up to date".
+   - Rider tab → Install latest. Click "Open Rider". About-dialog shows
+     expected version.
+   - In Rider: New Project → C# Console App on the newly installed SDK.
+     Run. Stdout shows "Hello, World!" — confirms the env propagation
+     chain end-to-end.
+   - Cleanup tab → managed SDK + Rider listed with computed sizes;
+     `Remove` works for non-active versions; active versions are dimmed
+     with tooltip "This is the active version."
+2. **Linux VM walkthrough** (single-file `publish/linux-x64/DevToolsManager.App`):
+   - same as Windows, plus: confirm `.desktop` entry appears in the
+     application menu and the wrapper script propagates `DOTNET_ROOT`
+     (open Rider, open a terminal pane *inside* Rider, run `echo
+     $DOTNET_ROOT`).
+3. **WebStorm end-to-end** on at least one platform: install, launch,
+   confirm version.
+4. **Sideload paths** for SDK and IDE: drop archive into `sideload/` /
+   `sideload-ides/`, verify it surfaces in "Show all versions" and
+   installs.
+5. **Re-bootstrap on tampering**: delete the active link manually, click
+   .NET tab → Install. Bootstrap runs again (existing reconcile logic).
+6. **Idempotency**: re-clicking install when up-to-date is impossible —
+   the button is gone in that state.
 
-Spec is in §5 and §7-Phase-6. Bring `IdeUninstaller` into this phase
-(see open item below) since it's a Cleanup-tab dependency. Expect this to
-span more than one session.
-
-### Phase 7 — final smoke-test
-
-Need a clean Windows VM and a clean Linux VM (or fresh user accounts).
-Walk through §7-Phase-7 acceptance steps. **Save real Windows / Linux
-testing for when both VMs are reachable** — Phase 6 can land before Phase 7
-runs.
+Once all six pass, push the branch.
 
 ### Cold-start checklist
 
@@ -1038,7 +1056,7 @@ If picking up in a fresh session with no chat history:
    rest is rationale).
 4. Re-create the tracking task list. Phases in §7 map 1:1 to tasks:
    Phase 1 → done, Phase 2 → done, Phase 3 → done, Phase 4 → done,
-   Phase 5 → next, Phase 6 → pending, Phase 7 → pending.
+   Phase 5 → done, Phase 6 → done (uncommitted), Phase 7 → next.
 5. `dotnet build DevToolsManager.slnx` should succeed before adding new
    work.
 6. If you change a decision while implementing, edit this file in the
