@@ -37,8 +37,7 @@ jobs:
 
       - name: Restore dependencies
         run: |
-          dotnet restore DevToolsManager.App/DevToolsManager.App.csproj --locked-mode -r linux-x64
-          dotnet restore DevToolsManager.App/DevToolsManager.App.csproj --locked-mode -r win-x64
+          dotnet restore DevToolsManager.App/DevToolsManager.App.csproj --locked-mode
 
       - name: Publish linux-x64
         run: |
